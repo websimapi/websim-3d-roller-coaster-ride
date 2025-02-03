@@ -24,20 +24,3 @@ html, body {
   font-size: 1rem;
   z-index: 10;
 }
-
-/* Styling for our ASCII effect element */
-.ascii-effect {
-  font-family: monospace;
-  line-height: 1.1;
-  /* Adding a subtle pulsing animation to give the ASCII shader more character */
-  animation: pulse 3s infinite alternate;
-}
-
-@keyframes pulse {
-  0% {
-    filter: contrast(1) brightness(1);
-  }
-  100% {
-    filter: contrast(1.2) brightness(1.2);
-  }
-}

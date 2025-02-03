@@ -4,12 +4,13 @@ import { AsciiEffect } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples
 /* 
   Main script for the 3D wooden roller coaster ride.
   Enhancements:
-    - First hill is now twice as tall and followed by a steeper drop for more acceleration.
     - Detailed roller coaster geometry with wooden aesthetics.
     - Wooden track, ties, and supports replacing the previous metal design.
     - Physics-based simulation using energy conservation with potential and kinetic energy.
     - The coaster now pulls up hills faster thanks to an increased chain lift power.
-    - An enhanced ASCII shader is applied to the entire scene with additional styling details.
+    - The first hill has been made significantly taller to build up enough energy.
+    - An enhanced, colorized ASCII shader is applied to the entire scene.
+    - A dynamic sun cycle animates the directional light and a visible sun mesh.
 */
 
 // Helper function to get the next value mod 1 (kept for fallback if needed)
@@ -26,15 +27,10 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
-// Create an enhanced ASCII effect based on the renderer.
-// Using a more detailed character set and adding a CSS class for unique animations.
-const asciiChars = " .:-=+*#%@";
-const asciiEffect = new AsciiEffect(renderer, asciiChars, { invert: true });
+// Create the ASCII effect based on the renderer with color enabled.
+const asciiEffect = new AsciiEffect(renderer, ' .:-+*=%@#', { invert: true, color: true });
 asciiEffect.setSize(container.clientWidth, container.clientHeight);
-asciiEffect.domElement.style.color = 'white';
 asciiEffect.domElement.style.backgroundColor = 'black';
-asciiEffect.domElement.classList.add('ascii-effect');
-
 // Remove the original canvas if any, then append the ASCII effect DOM element.
 container.innerHTML = '';
 container.appendChild(asciiEffect.domElement);
@@ -46,29 +42,36 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-const cameraYOffset = 2; // Raise the camera so that it is a bit above the track
+const cameraYOffset = 2; // Raise the camera a bit above the track
 
-// Add ambient light and directional light
+// Add ambient light which will be adjusted during the sun cycle.
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 
+// Add directional light to simulate the sun.
 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
-// Create the roller coaster track curve using CatmullRomCurve3 with custom control points
-// Adjusted the first hill to be twice as tall and modified the following point for a steeper drop.
+// Create a visible sun sphere to enhance the scene.
+const sunGeometry = new THREE.SphereGeometry(2, 32, 32);
+const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+const sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+scene.add(sunMesh);
+
+// Create the roller coaster track curve using CatmullRomCurve3 with custom control points.
+// The first hill's height has been significantly increased for more energy.
 const points = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(10, 80, -5),      // First hill now twice as tall (y:80)
-  new THREE.Vector3(20, -10, -10),      // Steeper drop for increased acceleration
+  new THREE.Vector3(10, 40, -5),    // First hill increased (y: 40)
+  new THREE.Vector3(20, 0, -10),
   new THREE.Vector3(30, -5, 0),
   new THREE.Vector3(40, 0, 10),
   new THREE.Vector3(30, 5, 20),
   new THREE.Vector3(20, 10, 10),
   new THREE.Vector3(10, 5, 0),
-  new THREE.Vector3(5, 2.5, 0),         // New intermediate point for smoother transition
-  new THREE.Vector3(0, 0, 0)            // Closing loop
+  new THREE.Vector3(5, 2.5, 0),   // Intermediate point for smoother transition
+  new THREE.Vector3(0, 0, 0)        // Closing loop
 ];
 // Use 'centripetal' curve type to smooth out abrupt turns.
 const trackCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
@@ -82,7 +85,7 @@ const tubeGeometry = new THREE.TubeGeometry(trackCurve, tubularSegments, trackRa
 
 // Wood-like material for the track
 const trackMaterial = new THREE.MeshStandardMaterial({
-  color: 0x8B4513, // Saddle brown color for wood
+  color: 0x8B4513, // Saddle brown for wood
   roughness: 0.9,
   metalness: 0.0 
 });
@@ -94,7 +97,7 @@ scene.add(trackMesh);
   These simulate the cross wooden planks (ties) that support the track structure.
 */
 function addTie(tVal) {
-  // Get current position and tangent from the track curve
+  // Get current position and tangent from the track curve.
   const pos = trackCurve.getPointAt(tVal);
   const tangent = trackCurve.getTangentAt(tVal).normalize();
 
@@ -138,7 +141,7 @@ for (let tVal = 0; tVal < 1; tVal += 0.05) {
 
 /*
   Add wooden supports beneath the track.
-  We create twin wooden posts on each side of the track.
+  Create twin wooden posts on each side of the track.
 */
 function addSupport(tVal) {
   const pos = trackCurve.getPointAt(tVal);
@@ -183,7 +186,7 @@ for (let i = 0; i < tubularSegments; i += 20) {
   addSupport(tSample);
 }
 
-// Add a simple ground plane for context
+// Add a simple ground plane for context.
 const groundGeometry = new THREE.PlaneGeometry(200, 200);
 const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Forest green
 const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -193,43 +196,58 @@ scene.add(groundMesh);
 
 /*
   Physics-based simulation for the coaster along the track.
-  This version uses conservation of energy, with separate calculations for potential
-  and kinetic energy. We update the coaster's total mechanical energy by accounting for:
+  Uses conservation of energy, considering:
     - Gravitational potential energy: E_p = m*g*h   (with m assumed as 1 for simplicity)
     - Kinetic energy: E_k = 0.5*v²
-    - Frictional losses, proportional to the square of the speed.
-    - Extra energy input from the chain lift during the early ascending portion.
-  
-  With this method, hills are pulled up faster: when in the chain lift zone, extra energy is added.
+    - Frictional losses proportional to v²
+    - Extra energy input from the chain lift during the ascending portion.
 */
 
-// Constants and initial conditions
+// Constants and initial conditions.
 const clock = new THREE.Clock();
 const g = 9.81;             // Gravitational acceleration (m/s²)
 let s = 0;                  // Arc length traveled along the track (in meters)
-let v = 2;                  // Initial velocity in m/s along the track
-
-// Energy based simulation: E = kinetic + potential
-// With mass m = 1, kinetic energy = 0.5 * v² and potential energy = g * h.
+let v = 2;                  // Initial velocity in m/s along the track.
 const initialPos = trackCurve.getPointAt(0);
-let E = 0.5 * v * v + g * initialPos.y;
+let E = 0.5 * v * v + g * initialPos.y;  // Total mechanical energy.
 
-// Simulation parameters for friction and chain lift
-const friction = 0.5;       // Friction coefficient (energy loss factor)
+// Simulation parameters for friction and chain lift.
+const friction = 0.5;           // Friction coefficient (energy loss factor)
 const chainLiftThreshold = 0.2; // Normalized track position where the chain lift is active
 const chainLiftPower = 15;      // Extra energy input per second in the chain lift zone (J/s)
+
+// Parameters for the sun cycle.
+const sunCycleDuration = 60;  // Duration of a full sun cycle in seconds.
 
 function animate() {
   requestAnimationFrame(animate);
 
   const deltaTime = clock.getDelta();
 
+  // ---------------- Sun Cycle Update ----------------
+  // Calculate the sun angle based on elapsed time.
+  const elapsed = clock.getElapsedTime();
+  const sunAngle = (elapsed % sunCycleDuration) / sunCycleDuration * 2 * Math.PI;
+  // Position the sun in a circular path: rising from the horizon to zenith and down.
+  const sunDistance = 30;
+  const sunX = Math.cos(sunAngle) * sunDistance;
+  // Use sine for the vertical position with an offset so the sun never goes completely below.
+  const sunY = Math.max(Math.sin(sunAngle) * sunDistance, 0) + 10;
+  const sunZ = -10;
+  directionalLight.position.set(sunX, sunY, sunZ);
+  sunMesh.position.set(sunX, sunY, sunZ);
+
+  // Adjust ambient light intensity based on sun height.
+  ambientLight.intensity = 0.3 + 0.7 * (sunY / (sunDistance + 10));
+  directionalLight.intensity = 0.5 + 0.5 * (sunY / (sunDistance + 10));
+
+  // ---------------- Coaster Physics Update ----------------
   // Determine normalized parameter based on current arc-length along the track.
   let tParam = mod1(s / trackCurve.getLength());
   const pos = trackCurve.getPointAt(tParam);
   const currentHeight = pos.y;
 
-  // Calculate frictional energy loss. (Simple model: loss proportional to v^2.)
+  // Calculate frictional energy loss (proportional to v²).
   const frictionLoss = friction * (v * v) * deltaTime;
 
   // Add energy input for chain lift when in the designated zone.
@@ -241,11 +259,11 @@ function animate() {
   // Update total mechanical energy.
   E += chainLiftEnergy - frictionLoss;
 
-  // Compute new kinetic energy (ensure it does not go negative).
+  // Compute new kinetic energy (ensuring it does not go negative).
   let kineticEnergy = E - g * currentHeight;
   if (kineticEnergy < 0) kineticEnergy = 0;
 
-  // Update velocity from kinetic energy: v = sqrt(2 * kineticEnergy)
+  // Update velocity from kinetic energy.
   v = Math.sqrt(2 * kineticEnergy);
 
   // Update arc length along the track based on current speed.
@@ -275,7 +293,7 @@ function animate() {
   const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(tangent));
   camera.up.copy(new THREE.Vector3(0, 1, 0)).applyAxisAngle(axis, angle * 0.2);
 
-  // Render using the ASCII effect rather than the normal renderer.
+  // Render using the enhanced, colorized ASCII effect.
   asciiEffect.render(scene, camera);
 }
 
