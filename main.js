@@ -1,13 +1,12 @@
 /* 
   Main script for the 3D wooden roller coaster ride.
-  Enhancements in this version:
-    - Redesigned track with no sharp turns and a long, high first hill.
-    - Added a chain-lift mechanism on the first hill to raise the coaster faster.
-    - Detailed wooden roller coaster track with siding, ties, and supports.
+  Enhancements:
+    - Detailed roller coaster geometry with wooden aesthetics.
+    - Wooden track, ties, and supports replacing the previous metal design.
     - Physics-based simulation for the coaster along the track.
 */
 
-// Helper function to get the next value mod 1
+// Helper function to get the next value mod 1 (kept for fallback if needed)
 function mod1(value) {
   return value - Math.floor(value);
 }
@@ -39,24 +38,21 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
-/*
-  Redesign the track: no sharp turns, with the first hill as the longest and highest section.
-  The first segment acts as the chain lift.
-*/
+// Create the roller coaster track curve using CatmullRomCurve3 with custom control points
+// Updated control points array to smooth out the sharp turn at the end.
 const points = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(10, 25, 0),      // Start of long high chain lift hill
-  new THREE.Vector3(25, 25, 0),      // Extended plateau for chain lift effect
-  new THREE.Vector3(40, 20, -10),
-  new THREE.Vector3(55, 15, -5),
-  new THREE.Vector3(70, 10, 10),
-  new THREE.Vector3(80, 8, 15),
-  new THREE.Vector3(90, 10, 5),
-  new THREE.Vector3(95, 0, -10),
-  new THREE.Vector3(0, 0, 0)         // Closing loop
+  new THREE.Vector3(10, 5, -5),
+  new THREE.Vector3(20, 0, -10),
+  new THREE.Vector3(30, -5, 0),
+  new THREE.Vector3(40, 0, 10),
+  new THREE.Vector3(30, 5, 20),
+  new THREE.Vector3(20, 10, 10),
+  new THREE.Vector3(10, 5, 0),
+  new THREE.Vector3(5, 2.5, 0),   // New intermediate point for smoother transition
+  new THREE.Vector3(0, 0, 0)        // closing loop
 ];
-
-// Use 'centripetal' curve type to naturally smooth out the turns.
+// Use 'centripetal' curve type to smooth out abrupt turns.
 const trackCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
 
 // Create the tube geometry for the roller coaster track with high detail.
@@ -80,16 +76,20 @@ scene.add(trackMesh);
   These simulate the cross wooden planks (ties) that support the track structure.
 */
 function addTie(tVal) {
+  // Get current position and tangent from the track curve
   const pos = trackCurve.getPointAt(tVal);
   const tangent = trackCurve.getTangentAt(tVal).normalize();
 
+  // Compute a side vector perpendicular to the tangent using the global up vector.
   const up = new THREE.Vector3(0, 1, 0);
   let side = new THREE.Vector3().crossVectors(up, tangent);
+  // Fallback if tangent is near vertical.
   if (side.lengthSq() < 0.0001) {
     side = new THREE.Vector3(1, 0, 0);
   }
   side.normalize();
 
+  // Dimensions for the tie: long along the side, narrow in depth, and thin vertically.
   const tieWidth = trackRadius * 5;
   const tieHeight = 0.15;
   const tieDepth = 0.05;
@@ -101,9 +101,11 @@ function addTie(tVal) {
   });
   const tieMesh = new THREE.Mesh(geometry, material);
 
+  // Position the tie centered on the track, with a slight downward offset.
   tieMesh.position.copy(pos);
   tieMesh.position.y -= trackRadius * 0.8;
 
+  // Orient the tie so its long axis aligns with the side vector.
   const matrix = new THREE.Matrix4();
   matrix.makeBasis(side, up, tangent);
   tieMesh.setRotationFromMatrix(matrix);
@@ -111,7 +113,7 @@ function addTie(tVal) {
   scene.add(tieMesh);
 }
 
-// Add ties along the track every 0.05 in t.
+// Add ties along the track every 0.05 in t
 for (let tVal = 0; tVal < 1; tVal += 0.05) {
   addTie(tVal);
 }
@@ -133,7 +135,7 @@ function addSupport(tVal) {
 
   const groundLevel = -5;
   const supportHeight = pos.y - groundLevel;
-  if (supportHeight <= 0.5) return;
+  if (supportHeight <= 0.5) return; // Skip supports if nearly at ground
 
   const postWidth = 0.2;
   const postDepth = 0.2;
@@ -144,11 +146,13 @@ function addSupport(tVal) {
     metalness: 0.0 
   });
 
+  // Left support post
   const leftPost = new THREE.Mesh(geometry, material);
   leftPost.position.copy(pos).add(side.clone().multiplyScalar(trackRadius + postWidth));
   leftPost.position.y = (pos.y + groundLevel) / 2;
   scene.add(leftPost);
 
+  // Right support post
   const rightPost = new THREE.Mesh(geometry, material);
   rightPost.position.copy(pos).add(side.clone().multiplyScalar(- (trackRadius + postWidth)));
   rightPost.position.y = (pos.y + groundLevel) / 2;
@@ -161,50 +165,7 @@ for (let i = 0; i < tubularSegments; i += 20) {
   addSupport(tSample);
 }
 
-/*
-  Add siding along the track to evoke an old-school wooden roller coaster aesthetic.
-  Siding boards run along both sides of the track, attached at regular intervals.
-*/
-function addSiding(tVal) {
-  const pos = trackCurve.getPointAt(tVal);
-  const tangent = trackCurve.getTangentAt(tVal).normalize();
-  const up = new THREE.Vector3(0, 1, 0);
-  
-  let side = new THREE.Vector3().crossVectors(up, tangent);
-  if (side.lengthSq() < 0.0001) {
-    side = new THREE.Vector3(1, 0, 0);
-  }
-  side.normalize();
-
-  const sidingWidth = 2.5;
-  const sidingHeight = 0.1;
-  const sidingDepth = 0.05;
-  const geometry = new THREE.BoxGeometry(sidingWidth, sidingHeight, sidingDepth);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xA0522D, // sienna for a slightly different wood tone
-    roughness: 0.95,
-    metalness: 0.0
-  });
-  
-  const leftBoard = new THREE.Mesh(geometry, material);
-  leftBoard.position.copy(pos).add(side.clone().multiplyScalar(trackRadius + sidingDepth));
-  leftBoard.position.y += trackRadius;
-  leftBoard.lookAt(leftBoard.position.clone().add(tangent));
-  scene.add(leftBoard);
-
-  const rightBoard = new THREE.Mesh(geometry, material);
-  rightBoard.position.copy(pos).add(side.clone().multiplyScalar(- (trackRadius + sidingDepth)));
-  rightBoard.position.y += trackRadius;
-  rightBoard.lookAt(rightBoard.position.clone().add(tangent));
-  scene.add(rightBoard);
-}
-
-// Add siding boards at intervals along the track every 0.1 in t.
-for (let tVal = 0; tVal < 1; tVal += 0.1) {
-  addSiding(tVal);
-}
-
-// Add a simple ground plane for context.
+// Add a simple ground plane for context
 const groundGeometry = new THREE.PlaneGeometry(200, 200);
 const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // forest green
 const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
@@ -214,20 +175,17 @@ scene.add(groundMesh);
 
 /*
   Physics-based simulation for the coaster along the track.
-  A chain-lift mechanism is applied during the initial (first hill) portion of the track.
-  The coaster is simulated as a point mass moving along the track.
+  We simulate a roller coaster car as a point mass moving along the track based on gravity and friction.
+  Instead of a fixed constant speed, we now use an acceleration computed from the track's slope.
 */
 const clock = new THREE.Clock();
+
+// Compute the total length of the track.
 const totalTrackLength = trackCurve.getLength();
-let s = 0; // arc length traveled along the track
+let s = 0; // arc length traveled along the track (in "meters" relative to our scene scale)
 let v = 2; // initial velocity in m/s along the track
-
-const g = 9.81;       // gravitational acceleration
-const friction = 0.5; // damping factor for realistic behavior
-
-// Define a chain-lift portion using a threshold (portion of the track parameter t).
-const chainLiftThreshold = 0.3; // first 30% of the track acts as chain lift
-const chainLiftAcceleration = 3.0; // additional acceleration provided by the chain lift
+const g = 9.81; // gravitational acceleration in m/s²
+const friction = 0.5; // damping factor (adjust for realistic behavior)
 
 function animate() {
   requestAnimationFrame(animate);
@@ -235,40 +193,40 @@ function animate() {
   const deltaTime = clock.getDelta();
 
   // Map arc-length s to normalized parameter tParam.
-  let tParam = mod1(s / totalTrackLength);
-  let tangent = trackCurve.getTangentAt(tParam).normalize();
+  const tParam = mod1(s / totalTrackLength);
 
-  // Check if we are within the chain-lift section.
-  if (tParam < chainLiftThreshold) {
-    // Override physics with chain lift boost.
-    v += chainLiftAcceleration * deltaTime;
-    s += v * deltaTime;
-  } else {
-    // Normal physics simulation.
-    const accel = -g * tangent.y - friction * v;
-    v += accel * deltaTime;
-    if (v < 0.5) v = 0.5;
-    s += v * deltaTime;
-  }
+  // Get the tangent at the current position for computing effective gravitational acceleration.
+  const tangent = trackCurve.getTangentAt(tParam).normalize();
+
+  // The acceleration along the track: component of gravity (projected) minus friction.
+  // When tangent.y is positive, the track is ascending (gravity opposes motion)
+  // When tangent.y is negative, the track is descending (gravity aids motion).
+  const accel = -g * tangent.y - friction * v;
+
+  // Update velocity and position (s) along the track.
+  v += accel * deltaTime;
+  // Prevent the velocity from going negative to simulate that the coaster won't reverse.
+  if (v < 0.5) v = 0.5;
+  s += v * deltaTime;
   // Loop the coaster along the closed track.
   s = s % totalTrackLength;
 
-  // Update current parameter after movement.
-  tParam = mod1(s / totalTrackLength);
-  const baseCameraPos = trackCurve.getPointAt(tParam);
+  // Determine the current position of the coaster along the track.
+  const baseCameraPos = trackCurve.getPointAt(mod1(s / totalTrackLength));
   camera.position.set(
     baseCameraPos.x,
     baseCameraPos.y + cameraYOffset,
     baseCameraPos.z
   );
 
-  // Look ahead along the track.
+  // Look ahead along the track for a proper view direction.
   const lookAheadS = s + 2; // look ahead 2 meters
   const lookAheadT = mod1(lookAheadS / totalTrackLength);
   const lookAtPoint = trackCurve.getPointAt(lookAheadT);
   camera.lookAt(new THREE.Vector3(lookAtPoint.x, lookAtPoint.y + cameraYOffset, lookAtPoint.z));
 
-  // Optional: add a slight banking effect based on the track's derivative.
+  // Optional: add a slight banking effect based on the curve's derivative.
+  // Compute a banking axis and apply a modest rotation.
   const axis = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tangent).normalize();
   const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(tangent));
   camera.up.copy(new THREE.Vector3(0, 1, 0)).applyAxisAngle(axis, angle * 0.2);
