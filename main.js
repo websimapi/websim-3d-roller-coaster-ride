@@ -1,8 +1,8 @@
 /* 
-  Main script for the 3D roller coaster ride.
+  Main script for the 3D wooden roller coaster ride.
   Enhancements:
-    - Increased tube geometry segments for a smoother, more detailed track.
-    - Elevated the camera offset from the track so that the track is less likely to be culled.
+    - Detailed roller coaster geometry with wooden aesthetics.
+    - Wooden track, ties, and supports replacing the previous metal design.
 */
 
 // Helper function to get the next value mod 1
@@ -51,39 +51,113 @@ const points = [
 ];
 const trackCurve = new THREE.CatmullRomCurve3(points, true); // closed loop
 
-// Create the tube geometry for the roller coaster track with higher detail
+// Create the tube geometry for the roller coaster track with higher detail.
+// We'll use a tube geometry but give it a wooden look.
 const tubularSegments = 400;  // increased for more detail
 const trackRadius = 0.5;
 const radialSegments = 16;
 const closed = true;
 const tubeGeometry = new THREE.TubeGeometry(trackCurve, tubularSegments, trackRadius, radialSegments, closed);
 
+// Wood-like material for the track
 const trackMaterial = new THREE.MeshStandardMaterial({ 
-  color: 0xff0000,
-  roughness: 0.5,
-  metalness: 0.1 
+  color: 0x8B4513, // saddle brown color for wood
+  roughness: 0.9,
+  metalness: 0.0 
 });
 const trackMesh = new THREE.Mesh(tubeGeometry, trackMaterial);
 scene.add(trackMesh);
 
-// Optional: add supports as simple cylinders along the track (for extra realism)
-function addSupport(position, length) {
-  const supportGeometry = new THREE.CylinderGeometry(0.1, 0.1, length, 8);
-  const supportMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
-  const supportMesh = new THREE.Mesh(supportGeometry, supportMaterial);
-  supportMesh.position.copy(position);
-  // Adjust so that the cylinder extends downward
-  supportMesh.position.y -= length / 2;
-  scene.add(supportMesh);
+/* 
+  Add wooden ties along the track.
+  These simulate the cross wooden planks (ties) that support the track structure.
+*/
+function addTie(tVal) {
+  // Get current position and tangent from the track curve
+  const pos = trackCurve.getPointAt(tVal);
+  const tangent = trackCurve.getTangentAt(tVal).normalize();
+
+  // Compute a side vector perpendicular to the tangent using the global up vector.
+  const up = new THREE.Vector3(0, 1, 0);
+  let side = new THREE.Vector3().crossVectors(up, tangent);
+  // If tangent is near vertical, fallback to a default side vector.
+  if (side.lengthSq() < 0.0001) {
+    side = new THREE.Vector3(1, 0, 0);
+  }
+  side.normalize();
+
+  // Dimensions for the tie: long along the side, narrow in depth, and thin vertically.
+  const tieWidth = trackRadius * 5;
+  const tieHeight = 0.15;
+  const tieDepth = 0.05;
+  const geometry = new THREE.BoxGeometry(tieWidth, tieHeight, tieDepth);
+  const material = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.9, metalness: 0.0 });
+  const tieMesh = new THREE.Mesh(geometry, material);
+
+  // The tie should be centered on the track, slightly below the tube to simulate a board.
+  tieMesh.position.copy(pos);
+  tieMesh.position.y -= trackRadius * 0.8; // slight downward offset
+
+  // Orient the tie so that its long axis (local X) aligns with the side vector.
+  // Create a rotation matrix using side (X), up (Y) and tangent (Z) vectors.
+  const matrix = new THREE.Matrix4();
+  matrix.makeBasis(side, up, tangent);
+  tieMesh.setRotationFromMatrix(matrix);
+
+  scene.add(tieMesh);
 }
 
-// We sample some positions along the track for supports
+// Add ties along the track every 0.05 in t
+for (let tVal = 0; tVal < 1; tVal += 0.05) {
+  addTie(tVal);
+}
+
+/*
+  Add wooden supports beneath the track.
+  Instead of cylindrical metal supports, we create twin wooden posts on each side of the track.
+*/
+function addSupport(tVal) {
+  // Get base position on the track and tangent to compute lateral offset.
+  const pos = trackCurve.getPointAt(tVal);
+  const tangent = trackCurve.getTangentAt(tVal).normalize();
+
+  // Compute a side vector perpendicular to the tangent.
+  const up = new THREE.Vector3(0, 1, 0);
+  let side = new THREE.Vector3().crossVectors(up, tangent);
+  if (side.lengthSq() < 0.0001) {
+    side = new THREE.Vector3(1, 0, 0);
+  }
+  side.normalize();
+
+  const groundLevel = -5;
+  // Determine the support height based on the current track height relative to ground.
+  const supportHeight = pos.y - groundLevel;
+  if (supportHeight <= 0.5) return; // Skip supports if nearly at ground
+
+  // Dimensions for a support post
+  const postWidth = 0.2;
+  const postDepth = 0.2;
+  const geometry = new THREE.BoxGeometry(postWidth, supportHeight, postDepth);
+  const material = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.9, metalness: 0.0 });
+  
+  // Left support post
+  const leftPost = new THREE.Mesh(geometry, material);
+  // Offset to the left side of the track
+  leftPost.position.copy(pos).add(side.clone().multiplyScalar(trackRadius + postWidth));
+  leftPost.position.y = (pos.y + groundLevel) / 2; // center post vertically from ground to track
+  scene.add(leftPost);
+  
+  // Right support post
+  const rightPost = new THREE.Mesh(geometry, material);
+  rightPost.position.copy(pos).add(side.clone().multiplyScalar(- (trackRadius + postWidth)));
+  rightPost.position.y = (pos.y + groundLevel) / 2;
+  scene.add(rightPost);
+}
+
+// Add supports along the track at intervals (every 20 segments)
 for (let i = 0; i < tubularSegments; i += 20) {
-  const t = i / tubularSegments;
-  const pos = trackCurve.getPointAt(t);
-  // Ensure supports reach down to near ground level (y= -5)
-  const supportLength = pos.y - (-5);
-  addSupport(pos, supportLength);
+  const tSample = i / tubularSegments;
+  addSupport(tSample);
 }
 
 // Add a simple ground plane for context
@@ -116,7 +190,6 @@ function animate() {
   // Determine the next point along the track for the camera to look at
   const lookAheadT = mod1(t + 0.01);
   const lookAtPoint = trackCurve.getPointAt(lookAheadT);
-  // We can also offset the lookAt point slightly to maintain perspective
   camera.lookAt(new THREE.Vector3(lookAtPoint.x, lookAtPoint.y + cameraYOffset, lookAtPoint.z));
 
   // Optional: add a slight banking effect based on the curve's derivative
