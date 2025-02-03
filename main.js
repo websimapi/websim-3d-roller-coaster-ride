@@ -3,7 +3,8 @@
   Enhancements:
     - Detailed roller coaster geometry with wooden aesthetics.
     - Wooden track, ties, and supports replacing the previous metal design.
-    - Physics-based simulation for the coaster along the track.
+    - Physics-based simulation using energy conservation with potential and kinetic energy.
+    - The coaster now pulls up hills faster thanks to an increased chain lift power.
 */
 
 // Helper function to get the next value mod 1 (kept for fallback if needed)
@@ -175,71 +176,84 @@ scene.add(groundMesh);
 
 /*
   Physics-based simulation for the coaster along the track.
-  We simulate a roller coaster car as a point mass moving along the track based on gravity and friction.
-  Instead of a fixed constant speed, we now use an acceleration computed from the track's slope.
+  This version uses conservation of energy, with separate calculations for potential
+  and kinetic energy. We update the coaster's total mechanical energy by accounting for:
+    - Gravitational potential energy: E_p = m*g*h   (with m assumed as 1 for simplicity)
+    - Kinetic energy: E_k = 0.5*v²
+    - Frictional losses, proportional to the square of the speed.
+    - Extra energy input from the chain lift during the early ascending portion.
   
-  Additional enhancement:
-    - When the coaster is on the chain lift section (e.g., the early ascending part of the track),
-      we apply an extra pulling force to make the ascent faster.
+  With this method, hills are pulled up faster: when in the chain lift zone, extra energy is added.
 */
+
+// Constants and initial conditions
 const clock = new THREE.Clock();
+const g = 9.81;             // gravitational acceleration (m/s²)
+let s = 0;                  // arc length traveled along the track (in meters)
+let v = 2;                  // initial velocity in m/s along the track
 
-// Constants for chain lift behavior.
-const chainLiftThreshold = 0.2; // Normalized track position where the chain lift is active
-const chainAcceleration = 5;    // Extra acceleration (in m/s²) applied by the chain lift
+// Energy based simulation: E = kinetic + potential
+// With mass m = 1, kinetic energy = 0.5 * v² and potential energy = g * h.
+const initialPos = trackCurve.getPointAt(0);
+let E = 0.5 * v * v + g * initialPos.y;
 
-// Compute the total length of the track.
-const totalTrackLength = trackCurve.getLength();
-let s = 0; // arc length traveled along the track (in "meters" relative to our scene scale)
-let v = 2; // initial velocity in m/s along the track
-const g = 9.81; // gravitational acceleration in m/s²
-const friction = 0.5; // damping factor (adjust for realistic behavior)
+// Simulation parameters for friction and chain lift
+const friction = 0.5;       // friction coefficient (energy loss factor)
+const chainLiftThreshold = 0.2; // normalized track position where the chain lift is active
+const chainLiftPower = 15;      // extra energy input per second in the chain lift zone (J/s)
 
 function animate() {
   requestAnimationFrame(animate);
 
   const deltaTime = clock.getDelta();
 
-  // Map arc-length s to normalized parameter tParam.
-  const tParam = mod1(s / totalTrackLength);
+  // Determine normalized parameter based on current arc-length along the track.
+  let tParam = mod1(s / trackCurve.getLength());
+  const pos = trackCurve.getPointAt(tParam);
+  const currentHeight = pos.y;
 
-  // Get the tangent at the current position for computing effective gravitational acceleration.
-  const tangent = trackCurve.getTangentAt(tParam).normalize();
+  // Calculate frictional energy loss. (Simple model: loss proportional to v^2.)
+  const frictionLoss = friction * (v * v) * deltaTime;
 
-  // The acceleration along the track: component of gravity (projected) minus friction.
-  // When tangent.y is positive, the track is ascending (gravity opposes motion)
-  // When tangent.y is negative, the track is descending (gravity aids motion).
-  let accel = -g * tangent.y - friction * v;
-
-  // Apply additional chain pull acceleration if in the chain lift zone.
+  // Add energy input for chain lift when in the designated zone.
+  let chainLiftEnergy = 0;
   if (tParam < chainLiftThreshold) {
-    accel += chainAcceleration;
+    chainLiftEnergy = chainLiftPower * deltaTime;
   }
 
-  // Update velocity and position (s) along the track.
-  v += accel * deltaTime;
-  // Prevent the velocity from going negative to simulate that the coaster won't reverse.
-  if (v < 0.5) v = 0.5;
-  s += v * deltaTime;
-  // Loop the coaster along the closed track.
-  s = s % totalTrackLength;
+  // Update total mechanical energy.
+  E += chainLiftEnergy - frictionLoss;
 
-  // Determine the current position of the coaster along the track.
-  const baseCameraPos = trackCurve.getPointAt(mod1(s / totalTrackLength));
+  // Compute new kinetic energy (ensure it does not go negative).
+  let kineticEnergy = E - g * currentHeight;
+  if (kineticEnergy < 0) kineticEnergy = 0;
+
+  // Update velocity from kinetic energy: v = sqrt(2 * kineticEnergy)
+  v = Math.sqrt(2 * kineticEnergy);
+
+  // Update arc length along the track based on current speed.
+  s += v * deltaTime;
+  s = s % trackCurve.getLength();
+
+  // Update the normalized parameter after moving.
+  tParam = mod1(s / trackCurve.getLength());
+
+  // Set camera position based on current coaster position.
+  const baseCameraPos = trackCurve.getPointAt(tParam);
   camera.position.set(
     baseCameraPos.x,
     baseCameraPos.y + cameraYOffset,
     baseCameraPos.z
   );
 
-  // Look ahead along the track for a proper view direction.
+  // Look ahead along the track for an optimal view direction.
   const lookAheadS = s + 2; // look ahead 2 meters
-  const lookAheadT = mod1(lookAheadS / totalTrackLength);
+  const lookAheadT = mod1(lookAheadS / trackCurve.getLength());
   const lookAtPoint = trackCurve.getPointAt(lookAheadT);
   camera.lookAt(new THREE.Vector3(lookAtPoint.x, lookAtPoint.y + cameraYOffset, lookAtPoint.z));
 
-  // Optional: add a slight banking effect based on the curve's derivative.
-  // Compute a banking axis and apply a modest rotation.
+  // Optional: add a slight banking effect based on the track's tangent.
+  const tangent = trackCurve.getTangentAt(tParam).normalize();
   const axis = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), tangent).normalize();
   const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(tangent));
   camera.up.copy(new THREE.Vector3(0, 1, 0)).applyAxisAngle(axis, angle * 0.2);
@@ -254,5 +268,5 @@ function onWindowResize() {
   renderer.setSize(container.clientWidth, container.clientHeight);
 }
 
-// Start the physics-based simulation animation loop.
+// Start the energy-based physics simulation animation loop.
 animate();
