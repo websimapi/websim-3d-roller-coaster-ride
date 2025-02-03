@@ -40,7 +40,8 @@ directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
 // Create the roller coaster track curve using CatmullRomCurve3 with custom control points
-// Updated control points array with the first hill made twice as tall.
+// The first hill's height has been doubled to ensure enough energy is gained.
+// Previous value was around y:12; now y:24 to provide enhanced kinetic energy.
 const points = [
   new THREE.Vector3(0, 0, 0),
   new THREE.Vector3(10, 24, -5),    // First hill now twice as tall (y: 24, up from 12)
@@ -51,13 +52,13 @@ const points = [
   new THREE.Vector3(20, 10, 10),
   new THREE.Vector3(10, 5, 0),
   new THREE.Vector3(5, 2.5, 0),   // New intermediate point for smoother transition
-  new THREE.Vector3(0, 0, 0)        // closing loop
+  new THREE.Vector3(0, 0, 0)        // Closing loop
 ];
 // Use 'centripetal' curve type to smooth out abrupt turns.
 const trackCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
 
 // Create the tube geometry for the roller coaster track with high detail.
-const tubularSegments = 400;  // increased for more detail
+const tubularSegments = 400;  // Increased for more detail
 const trackRadius = 0.5;
 const radialSegments = 16;
 const closed = true;
@@ -65,7 +66,7 @@ const tubeGeometry = new THREE.TubeGeometry(trackCurve, tubularSegments, trackRa
 
 // Wood-like material for the track
 const trackMaterial = new THREE.MeshStandardMaterial({
-  color: 0x8B4513, // saddle brown color for wood
+  color: 0x8B4513, // Saddle brown color for wood
   roughness: 0.9,
   metalness: 0.0 
 });
@@ -168,7 +169,7 @@ for (let i = 0; i < tubularSegments; i += 20) {
 
 // Add a simple ground plane for context
 const groundGeometry = new THREE.PlaneGeometry(200, 200);
-const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // forest green
+const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 }); // Forest green
 const groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
 groundMesh.rotation.x = - Math.PI / 2;
 groundMesh.position.y = -5;
@@ -188,9 +189,9 @@ scene.add(groundMesh);
 
 // Constants and initial conditions
 const clock = new THREE.Clock();
-const g = 9.81;             // gravitational acceleration (m/s²)
-let s = 0;                  // arc length traveled along the track (in meters)
-let v = 2;                  // initial velocity in m/s along the track
+const g = 9.81;             // Gravitational acceleration (m/s²)
+let s = 0;                  // Arc length traveled along the track (in meters)
+let v = 2;                  // Initial velocity in m/s along the track
 
 // Energy based simulation: E = kinetic + potential
 // With mass m = 1, kinetic energy = 0.5 * v² and potential energy = g * h.
@@ -198,9 +199,9 @@ const initialPos = trackCurve.getPointAt(0);
 let E = 0.5 * v * v + g * initialPos.y;
 
 // Simulation parameters for friction and chain lift
-const friction = 0.5;       // friction coefficient (energy loss factor)
-const chainLiftThreshold = 0.2; // normalized track position where the chain lift is active
-const chainLiftPower = 15;      // extra energy input per second in the chain lift zone (J/s)
+const friction = 0.5;       // Friction coefficient (energy loss factor)
+const chainLiftThreshold = 0.2; // Normalized track position where the chain lift is active
+const chainLiftPower = 15;      // Extra energy input per second in the chain lift zone (J/s)
 
 function animate() {
   requestAnimationFrame(animate);
