@@ -1,3 +1,5 @@
+// Import Three.js as an ES module from CDN (using version r128)
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js';
 // Import cannon-es physics (using ES module import from skypack CDN)
 import * as CANNON from 'https://cdn.skypack.dev/cannon-es';
 
@@ -211,17 +213,16 @@ function animate(time) {
   lastTime = time;
   
   // Animate chain links (cycling along the chain-lift section)
-  const chainCycleSpeed = chainLiftSpeed * 1000; // scale speed for visible motion
   chainLinks.forEach(link => {
     // Calculate the phase parameter for each link (cycling between 0 and chainLiftEnd)
     let phase = mod1(link.userData.phase + chainLiftSpeed * time * 0.05);
     // Position the link along the track's chain lift segment
-    const pos = trackCurve.getPointAt(phase * (chainLiftEnd));
+    const pos = trackCurve.getPointAt(phase * chainLiftEnd);
     // Offset the chain link slightly to the side (using tangent and side vector)
-    const tangent = trackCurve.getTangentAt(phase * (chainLiftEnd)).normalize();
-    const up = new THREE.Vector3(0,1,0);
+    const tangent = trackCurve.getTangentAt(phase * chainLiftEnd).normalize();
+    const up = new THREE.Vector3(0, 1, 0);
     let side = new THREE.Vector3().crossVectors(up, tangent);
-    if (side.lengthSq() < 0.0001) side = new THREE.Vector3(1,0,0);
+    if (side.lengthSq() < 0.0001) side = new THREE.Vector3(1, 0, 0);
     side.normalize();
     // Position the link a bit below the track
     pos.add(side.clone().multiplyScalar(-0.5));
