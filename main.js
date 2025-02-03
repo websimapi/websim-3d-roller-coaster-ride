@@ -40,10 +40,10 @@ directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
 // Create the roller coaster track curve using CatmullRomCurve3 with custom control points
-// Updated control points array to smooth out the sharp turn at the end.
+// Updated control points array with a higher first hill.
 const points = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(10, 5, -5),
+  new THREE.Vector3(10, 12, -5),    // Raised first hill for higher elevation
   new THREE.Vector3(20, 0, -10),
   new THREE.Vector3(30, -5, 0),
   new THREE.Vector3(40, 0, 10),
