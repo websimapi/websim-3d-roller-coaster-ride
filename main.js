@@ -177,8 +177,16 @@ scene.add(groundMesh);
   Physics-based simulation for the coaster along the track.
   We simulate a roller coaster car as a point mass moving along the track based on gravity and friction.
   Instead of a fixed constant speed, we now use an acceleration computed from the track's slope.
+  
+  Additional enhancement:
+    - When the coaster is on the chain lift section (e.g., the early ascending part of the track),
+      we apply an extra pulling force to make the ascent faster.
 */
 const clock = new THREE.Clock();
+
+// Constants for chain lift behavior.
+const chainLiftThreshold = 0.2; // Normalized track position where the chain lift is active
+const chainAcceleration = 5;    // Extra acceleration (in m/s²) applied by the chain lift
 
 // Compute the total length of the track.
 const totalTrackLength = trackCurve.getLength();
@@ -201,7 +209,12 @@ function animate() {
   // The acceleration along the track: component of gravity (projected) minus friction.
   // When tangent.y is positive, the track is ascending (gravity opposes motion)
   // When tangent.y is negative, the track is descending (gravity aids motion).
-  const accel = -g * tangent.y - friction * v;
+  let accel = -g * tangent.y - friction * v;
+
+  // Apply additional chain pull acceleration if in the chain lift zone.
+  if (tParam < chainLiftThreshold) {
+    accel += chainAcceleration;
+  }
 
   // Update velocity and position (s) along the track.
   v += accel * deltaTime;
