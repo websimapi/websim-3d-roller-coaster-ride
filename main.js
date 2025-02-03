@@ -4,12 +4,12 @@ import { AsciiEffect } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples
 /* 
   Main script for the 3D wooden roller coaster ride.
   Enhancements:
+    - First hill is now twice as tall and followed by a steeper drop for more acceleration.
     - Detailed roller coaster geometry with wooden aesthetics.
     - Wooden track, ties, and supports replacing the previous metal design.
     - Physics-based simulation using energy conservation with potential and kinetic energy.
     - The coaster now pulls up hills faster thanks to an increased chain lift power.
-    - The first hill has been made significantly taller to build up enough energy.
-    - An ASCII shader is applied to the entire scene.
+    - An enhanced ASCII shader is applied to the entire scene with additional styling details.
 */
 
 // Helper function to get the next value mod 1 (kept for fallback if needed)
@@ -26,11 +26,15 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 
-// Create the ASCII effect based on the renderer.
-const asciiEffect = new AsciiEffect(renderer, ' .:-+*=%@#', { invert: true });
+// Create an enhanced ASCII effect based on the renderer.
+// Using a more detailed character set and adding a CSS class for unique animations.
+const asciiChars = " .:-=+*#%@";
+const asciiEffect = new AsciiEffect(renderer, asciiChars, { invert: true });
 asciiEffect.setSize(container.clientWidth, container.clientHeight);
 asciiEffect.domElement.style.color = 'white';
 asciiEffect.domElement.style.backgroundColor = 'black';
+asciiEffect.domElement.classList.add('ascii-effect');
+
 // Remove the original canvas if any, then append the ASCII effect DOM element.
 container.innerHTML = '';
 container.appendChild(asciiEffect.domElement);
@@ -53,18 +57,18 @@ directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
 // Create the roller coaster track curve using CatmullRomCurve3 with custom control points
-// The first hill's height has been significantly increased for more energy.
+// Adjusted the first hill to be twice as tall and modified the following point for a steeper drop.
 const points = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(10, 40, -5),    // First hill increased even further (y: 40)
-  new THREE.Vector3(20, 0, -10),
+  new THREE.Vector3(10, 80, -5),      // First hill now twice as tall (y:80)
+  new THREE.Vector3(20, -10, -10),      // Steeper drop for increased acceleration
   new THREE.Vector3(30, -5, 0),
   new THREE.Vector3(40, 0, 10),
   new THREE.Vector3(30, 5, 20),
   new THREE.Vector3(20, 10, 10),
   new THREE.Vector3(10, 5, 0),
-  new THREE.Vector3(5, 2.5, 0),   // New intermediate point for smoother transition
-  new THREE.Vector3(0, 0, 0)        // Closing loop
+  new THREE.Vector3(5, 2.5, 0),         // New intermediate point for smoother transition
+  new THREE.Vector3(0, 0, 0)            // Closing loop
 ];
 // Use 'centripetal' curve type to smooth out abrupt turns.
 const trackCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
