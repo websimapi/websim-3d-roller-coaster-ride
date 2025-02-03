@@ -1,8 +1,9 @@
 /* 
   Main script for the 3D wooden roller coaster ride.
   Enhancements:
-    - Detailed roller coaster geometry with wooden aesthetics.
-    - Wooden track, ties, and supports replacing the previous metal design.
+    - Redesigned track with no sharp turns.
+    - The first hill is the highest for proper physics.
+    - Detailed wooden roller coaster track with siding running along its length.
     - Physics-based simulation for the coaster along the track.
 */
 
@@ -38,19 +39,25 @@ const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
-// Create the roller coaster track curve using CatmullRomCurve3 with custom control points
+/*
+  Redesign the track with smoother turns and a highest first hill.
+  Control points are carefully chosen so that the track flows naturally,
+  with the first hill reaching the maximum elevation.
+*/
 const points = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(10, 5, -5),
-  new THREE.Vector3(20, 0, -10),
-  new THREE.Vector3(30, -5, 0),
-  new THREE.Vector3(40, 0, 10),
-  new THREE.Vector3(30, 5, 20),
-  new THREE.Vector3(20, 10, 10),
-  new THREE.Vector3(10, 5, 0),
-  new THREE.Vector3(0, 0, 0) // closing loop
+  new THREE.Vector3(5, 15, 0),       // First hill: highest point
+  new THREE.Vector3(15, 10, -10),
+  new THREE.Vector3(25, 5, -5),
+  new THREE.Vector3(35, 3, 10),
+  new THREE.Vector3(45, 5, 15),
+  new THREE.Vector3(55, 7, 5),
+  new THREE.Vector3(65, 3, -10),
+  new THREE.Vector3(70, 0, 0),
+  new THREE.Vector3(0, 0, 0)         // Closing loop
 ];
-// Use 'centripetal' curve type to smooth out abrupt turns.
+
+// Use 'centripetal' curve type to naturally smooth out the turns.
 const trackCurve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
 
 // Create the tube geometry for the roller coaster track with high detail.
@@ -161,6 +168,54 @@ function addSupport(tVal) {
 for (let i = 0; i < tubularSegments; i += 20) {
   const tSample = i / tubularSegments;
   addSupport(tSample);
+}
+
+/*
+  Add siding along the track to evoke an old-school wooden roller coaster aesthetic.
+  Siding boards run along both sides of the track, attached at regular intervals.
+*/
+function addSiding(tVal) {
+  const pos = trackCurve.getPointAt(tVal);
+  const tangent = trackCurve.getTangentAt(tVal).normalize();
+  const up = new THREE.Vector3(0, 1, 0);
+  
+  let side = new THREE.Vector3().crossVectors(up, tangent);
+  if (side.lengthSq() < 0.0001) {
+    side = new THREE.Vector3(1, 0, 0);
+  }
+  side.normalize();
+
+  // Dimensions for the siding board
+  const sidingWidth = 2.5; // length along the track edge
+  const sidingHeight = 0.1;
+  const sidingDepth = 0.05;
+  const geometry = new THREE.BoxGeometry(sidingWidth, sidingHeight, sidingDepth);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xA0522D, // sienna for a slightly different wood tone
+    roughness: 0.95,
+    metalness: 0.0
+  });
+  
+  // Create board on the left side
+  const leftBoard = new THREE.Mesh(geometry, material);
+  leftBoard.position.copy(pos).add(side.clone().multiplyScalar(trackRadius + sidingDepth));
+  // Slightly offset vertically so it lines with the top of the track
+  leftBoard.position.y += trackRadius;
+  // Rotate so board lays flush to the track along its tangent.
+  leftBoard.lookAt(leftBoard.position.clone().add(tangent));
+  scene.add(leftBoard);
+
+  // Create board on the right side
+  const rightBoard = new THREE.Mesh(geometry, material);
+  rightBoard.position.copy(pos).add(side.clone().multiplyScalar(- (trackRadius + sidingDepth)));
+  rightBoard.position.y += trackRadius;
+  rightBoard.lookAt(rightBoard.position.clone().add(tangent));
+  scene.add(rightBoard);
+}
+
+// Add siding boards at intervals along the track every 0.1 in t.
+for (let tVal = 0; tVal < 1; tVal += 0.1) {
+  addSiding(tVal);
 }
 
 // Add a simple ground plane for context
