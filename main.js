@@ -1,8 +1,8 @@
 /* 
   Main script for the 3D roller coaster ride.
-  We create a roller coaster track using a CatmullRomCurve3,
-  generate a TubeGeometry to visualize the track,
-  and animate the camera to follow the track as if riding it.
+  Enhancements:
+    - Increased tube geometry segments for a smoother, more detailed track.
+    - Elevated the camera offset from the track so that the track is less likely to be culled.
 */
 
 // Helper function to get the next value mod 1
@@ -20,13 +20,14 @@ renderer.setSize(container.clientWidth, container.clientHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 container.appendChild(renderer.domElement);
 
-// Set up camera: We'll animate the camera to follow along the track.
+// Set up camera: We'll animate the camera to follow along the track with a vertical offset.
 const camera = new THREE.PerspectiveCamera(
   75,
   container.clientWidth / container.clientHeight,
   0.1,
   1000
 );
+const cameraYOffset = 2; // Raise the camera so that it is a bit higher than the track
 
 // Add ambient light and directional light
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -50,8 +51,8 @@ const points = [
 ];
 const trackCurve = new THREE.CatmullRomCurve3(points, true); // closed loop
 
-// Create the tube geometry for the roller coaster track
-const tubularSegments = 200;
+// Create the tube geometry for the roller coaster track with higher detail
+const tubularSegments = 400;  // increased for more detail
 const trackRadius = 0.5;
 const radialSegments = 16;
 const closed = true;
@@ -104,14 +105,19 @@ function animate() {
   // Update parameter t along the track. Loop back upon completing a circuit.
   t = mod1(t + speed);
 
-  // Position the camera on the track
-  const cameraPos = trackCurve.getPointAt(t);
-  camera.position.copy(cameraPos);
+  // Position the camera on the track and apply the upward offset
+  const baseCameraPos = trackCurve.getPointAt(t);
+  camera.position.set(
+    baseCameraPos.x,
+    baseCameraPos.y + cameraYOffset,
+    baseCameraPos.z
+  );
 
-  // For a smoother look, determine the next point along the track
+  // Determine the next point along the track for the camera to look at
   const lookAheadT = mod1(t + 0.01);
   const lookAtPoint = trackCurve.getPointAt(lookAheadT);
-  camera.lookAt(lookAtPoint);
+  // We can also offset the lookAt point slightly to maintain perspective
+  camera.lookAt(new THREE.Vector3(lookAtPoint.x, lookAtPoint.y + cameraYOffset, lookAtPoint.z));
 
   // Optional: add a slight banking effect based on the curve's derivative
   const tangent = trackCurve.getTangentAt(t).normalize();
