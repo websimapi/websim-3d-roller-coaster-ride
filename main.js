@@ -1,3 +1,6 @@
+// Import the AsciiEffect module from Three.js examples.
+import { AsciiEffect } from 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/effects/AsciiEffect.js';
+
 /* 
   Main script for the 3D wooden roller coaster ride.
   Enhancements:
@@ -5,6 +8,8 @@
     - Wooden track, ties, and supports replacing the previous metal design.
     - Physics-based simulation using energy conservation with potential and kinetic energy.
     - The coaster now pulls up hills faster thanks to an increased chain lift power.
+    - The first hill has been made significantly taller to build up enough energy.
+    - An ASCII shader is applied to the entire scene.
 */
 
 // Helper function to get the next value mod 1 (kept for fallback if needed)
@@ -20,7 +25,15 @@ scene.background = new THREE.Color(0x87ceeb); // light blue sky
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
-container.appendChild(renderer.domElement);
+
+// Create the ASCII effect based on the renderer.
+const asciiEffect = new AsciiEffect(renderer, ' .:-+*=%@#', { invert: true });
+asciiEffect.setSize(container.clientWidth, container.clientHeight);
+asciiEffect.domElement.style.color = 'white';
+asciiEffect.domElement.style.backgroundColor = 'black';
+// Remove the original canvas if any, then append the ASCII effect DOM element.
+container.innerHTML = '';
+container.appendChild(asciiEffect.domElement);
 
 // Set up camera: the camera will follow the coaster car with a vertical offset.
 const camera = new THREE.PerspectiveCamera(
@@ -40,11 +53,10 @@ directionalLight.position.set(10, 20, 0);
 scene.add(directionalLight);
 
 // Create the roller coaster track curve using CatmullRomCurve3 with custom control points
-// The first hill's height has been doubled to ensure enough energy is gained.
-// Previous value was around y:12; now y:24 to provide enhanced kinetic energy.
+// The first hill's height has been significantly increased for more energy.
 const points = [
   new THREE.Vector3(0, 0, 0),
-  new THREE.Vector3(10, 24, -5),    // First hill now twice as tall (y: 24, up from 12)
+  new THREE.Vector3(10, 40, -5),    // First hill increased even further (y: 40)
   new THREE.Vector3(20, 0, -10),
   new THREE.Vector3(30, -5, 0),
   new THREE.Vector3(40, 0, 10),
@@ -259,7 +271,8 @@ function animate() {
   const angle = Math.acos(new THREE.Vector3(0, 1, 0).dot(tangent));
   camera.up.copy(new THREE.Vector3(0, 1, 0)).applyAxisAngle(axis, angle * 0.2);
 
-  renderer.render(scene, camera);
+  // Render using the ASCII effect rather than the normal renderer.
+  asciiEffect.render(scene, camera);
 }
 
 window.addEventListener('resize', onWindowResize, false);
@@ -267,6 +280,7 @@ function onWindowResize() {
   camera.aspect = container.clientWidth / container.clientHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(container.clientWidth, container.clientHeight);
+  asciiEffect.setSize(container.clientWidth, container.clientHeight);
 }
 
 // Start the energy-based physics simulation animation loop.
